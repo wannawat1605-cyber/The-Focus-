@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Traveller</title>
+<style>
+
+  body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Kanit', sans-serif;
+    background: url('furry-lofi-study.1920x1080.gif') no-repeat center center/cover;
+    overflow: hidden;
+  }
+
+
+  .page {
+    display: none;
+    height: 100%;
+    width: 100%;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .page.active { display: flex; }
+
+  h2 { color: white; text-align: center; margin-bottom: 50px; }
+
+
+  .focus-button {
+    padding: 20px 60px;
+    background-color: #8B4000;
+    color: white;
+    font-size: 1.5rem;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: 0.2s;
+    margin-top: 20px;
+  }
+  .focus-button:hover { background-color: #a14c00; transform: scale(1.05); }
+
+
+  input[type="number"] {
+    padding: 15px;
+    font-size: 1.2rem;
+    border-radius: 10px;
+    border: none;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  #timer-display { font-size: 3rem; color: white; margin: 30px 0; }
+
+  canvas { background: rgba(255,255,255,0.2); border-radius: 15px; }
+</style>
+</head>
+<body>
+
+
+<audio autoplay loop>
+  <source src="background-music.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+
+<div id="lobby-page" class="page active">
+
+  <h1 style="color:white; text-align:center; font-size:4rem; margin-bottom:20px;">The Focus</h1>
+
+
+  <h2 style="color:white; text-align:center; margin-bottom:50px;">
+    <span style="color:#8B4000;">Take a deep breathe</span>. Step into the zone.
+  </h2>
+
+  <button class="focus-button" onclick="goPage('set-time-page')">Focus</button>
+</div>
+
+
+
+<div id="set-time-page" class="page">
+  <h2>กำหนดเวลาที่จะ Focus</h2>
+  <input type="number" id="focus-minutes">
+  <button class="focus-button" onclick="startFocus()">เริ่ม Focus</button>
+</div>
+
+
+<div id="timer-page" class="page">
+  <h2>Focus Time</h2>
+  <div id="timer-display">00:00</div>
+  <button class="focus-button" onclick="stopFocus()">หยุด</button>
+
+  
+  <button class="focus-button" style="position:fixed; bottom:20px; right:20px; padding:10px 20px; font-size:1rem;" onclick="openNote()">โน้ต</button>
+
+
+  <div id="note-popup" style="
+    display:none;
+    position:fixed;
+    bottom:60px;
+    right:20px;
+    width:300px;
+    height:200px;
+    background-color: rgba(255,255,255,0.95);
+    border-radius:15px;
+    box-shadow:0 0 10px rgba(0,0,0,0.5);
+    padding:10px;
+    flex-direction:column;
+  ">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <strong>โน้ต</strong>
+      <button onclick="closeNote()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;">✖</button>
+    </div>
+    <textarea id="focus-note" style="width:100%; height:140px; margin-top:10px; border:none; resize:none;" placeholder="จดสรุปเนื้อหาของคุณที่นี่..."></textarea>
+    <button class="focus-button" style="margin-top:5px; width:100%;" onclick="saveNote()">บันทึก</button>
+  </div>
+</div>
+
+<div id="graph-page" class="page">
+  <h2>สรุปการ Focus</h2>
+
+  <p style="color:white;">รอบปัจจุบัน</p>
+  <canvas id="currentChart" width="300" height="150"></canvas>
+
+  <p style="color:white; margin-top:30px;">รวมประจำสัปดาห์</p>
+  <canvas id="weeklyChart" width="300" height="150"></canvas>
+
+  <button class="focus-button" onclick="goPage('lobby-page')">กลับ Lobby</button>
+
+<button class="focus-button" onclick="toggleNotes()" style="margin-top:20px;">โน้ตรอบต่างๆ</button>
+
+<div id="all-notes" style="display:none; color:white; margin-top:20px; max-height:200px; overflow-y:auto; width:80%;"></div>
+</div>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let currentTimer;
+let countdownTime = 0;
+
+function goPage(pageId){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+}
+
+function startFocus(){
+  const minutes = parseInt(document.getElementById('focus-minutes').value);
+  if(isNaN(minutes) || minutes <=0) { alert('กรุณากรอกเวลาที่ถูกต้อง'); return; }
+  countdownTime = minutes*60;
+  goPage('timer-page');
+  updateTimerDisplay();
+  currentTimer = setInterval(timerTick,1000);
+}
+
+function timerTick(){
+  if(countdownTime <= 0){
+    clearInterval(currentTimer);
+    showGraph();
+    return;
+  }
+  countdownTime--;
+  updateTimerDisplay();
+}
+
+function stopFocus(){
+  clearInterval(currentTimer);
+  showGraph();
+}
+
+function updateTimerDisplay(){
+  let min = Math.floor(countdownTime/60);
+  let sec = countdownTime%60;
+  document.getElementById('timer-display').textContent = `${min}:${sec<10?'0':''}${sec}`;
+}
+
+function openNote(){
+  document.getElementById('note-popup').style.display = 'flex';
+
+  const saved = localStorage.getItem('lastFocusNote');
+  if(saved) document.getElementById('focus-note').value = saved;
+}
+
+function closeNote(){
+  document.getElementById('note-popup').style.display = 'none';
+}
+
+
+function saveNote(){
+  const noteContent = document.getElementById('focus-note').value;
+  localStorage.setItem('lastFocusNote', noteContent);
+  alert('บันทึกเรียบร้อย');
+}
+
+
+function stopFocus(){
+  clearInterval(currentTimer);
+
+
+  const minutesFocused = parseInt(document.getElementById('focus-minutes').value) - Math.floor(countdownTime/60);
+  let weeklyData = JSON.parse(localStorage.getItem('weeklyFocus')) || [];
+  weeklyData.push(minutesFocused);
+  localStorage.setItem('weeklyFocus', JSON.stringify(weeklyData));
+
+
+  const noteContent = document.getElementById('focus-note').value;
+  let allNotes = JSON.parse(localStorage.getItem('allFocusNotes')) || [];
+  allNotes.push({
+    round: weeklyData.length,
+    time: minutesFocused,
+    note: noteContent
+  });
+  localStorage.setItem('allFocusNotes', JSON.stringify(allNotes));
+
+
+  showGraph();
+}
+
+
+function showGraph(){
+  goPage('graph-page');
+
+
+  let weeklyData = JSON.parse(localStorage.getItem('weeklyFocus')) || [];
+  const minutesFocused = parseInt(document.getElementById('focus-minutes').value) - Math.floor(countdownTime/60);
+  weeklyData.push(minutesFocused);
+  localStorage.setItem('weeklyFocus', JSON.stringify(weeklyData));
+
+
+  const ctx1 = document.getElementById('currentChart').getContext('2d');
+  new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: ['รอบนี้'],
+      datasets: [{
+        label:'เวลา Focus (นาที)',
+        data: [minutesFocused],
+        backgroundColor:'#8B4000'
+      }]
+    },
+    options: {
+      responsive:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true, max: Math.max(minutesFocused,30) } }
+    }
+  });
+
+
+  const ctx2 = document.getElementById('weeklyChart').getContext('2d');
+  new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: weeklyData.map((_,i)=>`รอบ ${i+1}`),
+      datasets:[{
+        label:'เวลา Focus (นาที)',
+        data: weeklyData,
+        backgroundColor:'#FFAA33'
+      }]
+    },
+    options: {
+      responsive:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+}
+
+function toggleNotes(){
+  const container = document.getElementById('all-notes');
+  if(container.style.display === 'none'){
+
+    const allNotes = JSON.parse(localStorage.getItem('allFocusNotes')) || [];
+    if(allNotes.length === 0){
+      container.innerHTML = "<p>ยังไม่มีโน้ต</p>";
+    } else {
+      container.innerHTML = allNotes.map(n => 
+        `<p><strong>รอบ ${n.round} (${n.time} นาที):</strong> ${n.note}</p>`
+      ).join('');
+    }
+    container.style.display = 'block';
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+</script>
+
+</body>
+</html>
